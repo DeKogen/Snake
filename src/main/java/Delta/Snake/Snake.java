@@ -19,7 +19,7 @@ public final class Snake {
         if (initialLength < 1) {
             throw new IllegalArgumentException("stupid u forgot the snake");
         }
-        
+
 
         for (int i = 0; i < initialLength; i++) {
             int x = headX;

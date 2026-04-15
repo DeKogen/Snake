@@ -45,12 +45,6 @@ public final class ConsoleRenderer {
         System.out.print(sb);
 
         if (game.isGameOver()) {
-            sb.append("GAME OVER\n");
-        }
-
-        System.out.print(sb);
-
-        if (game.isGameOver()) {
             printGameOver(game.getScore());
         }
 
