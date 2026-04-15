@@ -4,7 +4,6 @@ public final class DirectionController {
     private Snake.Direction currentDirection = Snake.Direction.RIGHT;
     private Snake.Direction nextDirection = null;
     private Snake.Direction bufferedDirection = null;
-    private boolean quitRequested = false;
 
     public synchronized void offerDirection(Snake.Direction newDirection) {
         if (newDirection == null) {
@@ -31,12 +30,6 @@ public final class DirectionController {
         bufferedDirection = null;
 
         return currentDirection;
-    }
-
-
-
-    public synchronized boolean isQuitRequested() {
-        return quitRequested;
     }
 
     private boolean isOpposite(Snake.Direction a, Snake.Direction b) {
