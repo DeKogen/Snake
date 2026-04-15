@@ -13,7 +13,7 @@ public final class InputReader implements Runnable {
     public void run() {
         Scanner sc = new Scanner(System.in);
 
-        while (!controller.isQuitRequested()) {
+        while (true) {
             String line = sc.nextLine();
 
             if (line == null || line.isEmpty()) {

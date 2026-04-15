@@ -14,7 +14,7 @@ public class Main {
 
         renderer.render(game);
 
-        while (!game.isGameOver() && !controller.isQuitRequested()) {
+        while (!game.isGameOver()) {
             Snake.Direction dir = controller.consumeDirection();
             game.tick(dir);
             renderer.render(game);
