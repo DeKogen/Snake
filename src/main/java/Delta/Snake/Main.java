@@ -2,9 +2,9 @@ package Delta.Snake;
 
 public class Main {
     public static void main(String[] args) throws InterruptedException {
-        Game game = new Game(30, 15);
-        ConsoleRenderer renderer = new ConsoleRenderer();
         DirectionController controller = new DirectionController();
+        Game game = new Game(30, 15, controller);
+        ConsoleRenderer renderer = new ConsoleRenderer();
 
         Thread inputThread = new Thread(new InputReader(controller));
         inputThread.setDaemon(true);
@@ -14,9 +14,16 @@ public class Main {
 
         renderer.render(game);
 
-        while (!game.isGameOver()) {
-            Snake.Direction dir = controller.consumeDirection();
-            game.tick(dir);
+        boolean extraBotAdded = false;
+
+        while (game.isRunning()) {
+            game.tick();
+
+            if (!extraBotAdded && game.getScore() >= 5) {
+                game.addRandomBot(4);
+                extraBotAdded = true;
+            }
+
             renderer.render(game);
             Thread.sleep(tickMs);
         }

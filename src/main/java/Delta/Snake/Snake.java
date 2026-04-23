@@ -17,7 +17,7 @@ public final class Snake {
 
     public Snake(int headX, int headY, int initialLength, Direction initialDirection) {
         if (initialLength < 1) {
-            throw new IllegalArgumentException("stupid u forgot the snake");
+            throw new IllegalArgumentException("stupid u forgot the snake | initialLength must be at least 1");
         }
 
 

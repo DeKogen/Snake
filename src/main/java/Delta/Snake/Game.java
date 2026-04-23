@@ -4,6 +4,7 @@ import Delta.Map.SegmentStorage;
 import Delta.Map.SegmentStorage.Coord;
 import Delta.Map.SegmentStorage.SegmentType;
 
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.List;
 
 public final class Game {
@@ -14,15 +15,32 @@ public final class Game {
         WIN
     }
 
+    public enum AppleType {
+        NORMAL,
+        RAGE
+    }
+
     private final int width;
     private final int height;
     private final SegmentStorage board;
-    private final Snake snake;
+
+    private static final int RAGE_DURATION_TICKS = 8;
+    private static final int RAGE_APPLE_CHANCE = 5;
+    private static final int BLACK_HOLE_PULL_RADIUS = 4;
+    private static final int BLACK_HOLE_RELOCATE_EVERY = 18;
+
+    private final java.util.List<SnakeAgent> snakes = new java.util.ArrayList<>();
+
+    private Coord apple;
+    private AppleType appleType = AppleType.NORMAL;
+    private Coord blackHole;
 
     private State state = State.RUNNING;
     private int score = 0;
+    private int blackHoleTicksLeft = BLACK_HOLE_RELOCATE_EVERY;
+    private int nextSnakeId = 1;
 
-    public Game(int width, int height) {
+    public Game(int width, int height, DirectionController playerInput) {
         if (width < 7 || height < 7) {
             throw new IllegalArgumentException("Board is too small");
         }
@@ -31,74 +49,341 @@ public final class Game {
         this.height = height;
         this.board = new SegmentStorage(width, height);
 
-        int headX = width / 2;
-        int headY = height / 2;
-
-        this.snake = new Snake(headX, headY, 3, Snake.Direction.RIGHT);
-
         placeBorderWalls();
-        placeInitialSnake();
+
+        Snake playerSnake = new Snake(width / 2, height / 2, 3, Snake.Direction.RIGHT);
+        SnakeAgent playerAgent = new SnakeAgent(
+                nextSnakeId++,
+                playerSnake,
+                new PlayerController(playerInput),
+                Snake.Direction.RIGHT,
+                true
+        );
+        snakes.add(playerAgent);
+        placeAgentOnBoard(playerAgent);
 
         if (!spawnApple()) {
             state = State.WIN;
         }
+
+        spawnBlackHole();
+        rebuildBoard();
     }
 
-    public boolean tick(Snake.Direction dir) {
+    public boolean tick() {
         if (state != State.RUNNING) {
             return false;
         }
 
-        Coord next = snake.nextHead(dir);
-
-        if (!isInside(next.x(), next.y())) {
-            state = State.GAME_OVER;
-            return false;
-        }
-
-        SegmentType nextCell = board.get(next.x(), next.y());
-        boolean grow = nextCell == SegmentType.APPLE;
-
-        if (nextCell == SegmentType.WALL) {
-            state = State.GAME_OVER;
-            return false;
-        }
-
-        if (snake.wouldHitItself(next.x(), next.y(), grow)) {
-            state = State.GAME_OVER;
-            return false;
-        }
-
-        Snake.MoveResult move = snake.move(dir, grow);
-
-        Coord oldHead = move.oldHead();
-        Coord newHead = move.newHead();
-        Coord removedTail = move.removedTail();
-
-        if (removedTail != null && !removedTail.equals(newHead)) {
-            board.put(removedTail.x(), removedTail.y(), SegmentType.EMPTY);
-        }
-
-        if (!oldHead.equals(newHead)) {
-            if (snake.occupies(oldHead.x(), oldHead.y())) {
-                board.put(oldHead.x(), oldHead.y(), SegmentType.SNAKE_BODY);
-            } else {
-                board.put(oldHead.x(), oldHead.y(), SegmentType.EMPTY);
+        for (SnakeAgent agent : snakes) {
+            if (agent.isAlive()) {
+                agent.tickStatuses();
             }
         }
 
-        board.put(newHead.x(), newHead.y(), SegmentType.SNAKE_HEAD);
+        updateBlackHole();
 
-        if (grow) {
-            score++;
+        java.util.Map<SnakeAgent, Snake.Direction> chosenDirections = new java.util.HashMap<>();
+        java.util.Map<SnakeAgent, Coord> nextHeads = new java.util.HashMap<>();
+        java.util.Map<Long, Integer> headTargets = new java.util.HashMap<>();
 
+        GameSnapshot snapshot = buildSnapshot();
+
+        for (SnakeAgent agent : snakes) {
+            if (!agent.isAlive()) {
+                continue;
+            }
+
+            Snake.Direction requested = agent.getController().chooseDirection(snapshot, agent);
+            Snake.Direction actual = sanitizeDirection(agent.getCurrentDirection(), requested);
+            actual = applyBlackHolePull(agent, actual);
+            agent.setCurrentDirection(actual);
+
+            Coord next = agent.getSnake().nextHead(actual);
+
+            chosenDirections.put(agent, actual);
+            nextHeads.put(agent, next);
+
+            long key = SegmentStorage.pack(next.x(), next.y());
+            headTargets.merge(key, 1, Integer::sum);
+        }
+
+        java.util.Set<Long> occupiedNow = buildOccupiedSet();
+        boolean appleEaten = false;
+
+        for (SnakeAgent agent : snakes) {
+            if (!agent.isAlive()) {
+                continue;
+            }
+
+            Coord next = nextHeads.get(agent);
+            long nextKey = SegmentStorage.pack(next.x(), next.y());
+
+            if (!isInside(next.x(), next.y())) {
+                agent.kill();
+                continue;
+            }
+
+            if (isBlackHole(next.x(), next.y())) {
+                agent.kill();
+                continue;
+            }
+
+            SegmentType cell = board.get(next.x(), next.y());
+            if (cell == SegmentType.WALL) {
+                agent.kill();
+                continue;
+            }
+
+            if (headTargets.getOrDefault(nextKey, 0) > 1) {
+                agent.kill();
+                continue;
+            }
+
+            long ownTail = SegmentStorage.pack(agent.getSnake().tail().x(), agent.getSnake().tail().y());
+            boolean grows = apple != null && next.equals(apple);
+
+            boolean hitsBody = occupiedNow.contains(nextKey) && !(nextKey == ownTail && !grows);
+            if (hitsBody) {
+                agent.kill();
+            }
+        }
+
+        for (SnakeAgent agent : snakes) {
+            if (!agent.isAlive()) {
+                continue;
+            }
+
+            Coord next = nextHeads.get(agent);
+
+            boolean ateApple = apple != null && next.equals(apple);
+            boolean grows = ateApple || agent.isRaging();
+
+            agent.getSnake().move(chosenDirections.get(agent), grows);
+
+            if (ateApple) {
+                appleEaten = true;
+
+                if (appleType == AppleType.RAGE) {
+                    agent.activateRage(RAGE_DURATION_TICKS);
+                }
+
+                if (agent.isPlayer()) {
+                    score += (appleType == AppleType.RAGE) ? 3 : 1;
+                }
+            }
+        }
+
+        boolean playerAlive = snakes.stream().anyMatch(a -> a.isPlayer() && a.isAlive());
+        if (!playerAlive) {
+            state = State.GAME_OVER;
+            rebuildBoard();
+            return false;
+        }
+
+        rebuildBoard();
+
+        if (appleEaten) {
+            apple = null;
             if (!spawnApple()) {
                 state = State.WIN;
+                rebuildBoard();
+                return false;
+            }
+            rebuildBoard();
+        }
+
+        return true;
+    }
+
+    public boolean addRandomBot(int length, SnakeController controller) {
+        if (state != State.RUNNING) {
+            return false;
+        }
+
+        final int maxAttempts = 10_000;
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            Snake.Direction dir = randomDirection();
+            Coord head = randomEmptyCell();
+
+            if (head == null) {
+                return false;
+            }
+
+            if (!canPlaceSnake(head.x(), head.y(), length, dir)) {
+                continue;
+            }
+
+            Snake snake = new Snake(head.x(), head.y(), length, dir);
+            SnakeAgent agent = new SnakeAgent(
+                    nextSnakeId++,
+                    snake,
+                    controller,
+                    dir,
+                    false
+            );
+
+            snakes.add(agent);
+            placeAgentOnBoard(agent);
+            rebuildBoard();
+            return true;
+        }
+
+        return false;
+    }
+
+    public Coord getApple() {
+        return apple;
+    }
+
+    public AppleType getAppleType() {
+        return appleType;
+    }
+
+    public Coord getBlackHole() {
+        return blackHole;
+    }
+
+    public int getPlayerRageTicks() {
+        for (SnakeAgent agent : snakes) {
+            if (agent.isPlayer()) {
+                return agent.getRageTicks();
+            }
+        }
+        return 0;
+    }
+
+    public boolean addRandomBot(int length) {
+        return addRandomBot(length, new RewardBotController());
+    }
+
+    private Snake.Direction randomDirection() {
+        Snake.Direction[] dirs = Snake.Direction.values();
+        return dirs[ThreadLocalRandom.current().nextInt(dirs.length)];
+    }
+
+    private Coord randomEmptyCell() {
+        return board.getRandomByType(SegmentType.EMPTY);
+    }
+
+    private boolean canPlaceSnake(int headX, int headY, int length, Snake.Direction dir) {
+        for (int i = 0; i < length; i++) {
+            int x = headX;
+            int y = headY;
+
+            switch (dir) {
+                case RIGHT -> x = headX - i;
+                case LEFT -> x = headX + i;
+                case UP -> y = headY + i;
+                case DOWN -> y = headY - i;
+            }
+
+            if (!isInside(x, y)) {
+                return false;
+            }
+
+            if (board.get(x, y) != SegmentType.EMPTY) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private void placeAgentOnBoard(SnakeAgent agent) {
+        java.util.List<Coord> segments = agent.getSnake().segments();
+
+        for (int i = 0; i < segments.size(); i++) {
+            Coord c = segments.get(i);
+            board.put(c.x(), c.y(), i == 0 ? SegmentType.SNAKE_HEAD : SegmentType.SNAKE_BODY);
+        }
+    }
+
+
+
+    private void rebuildBoard() {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (x == 0 || x == width - 1 || y == 0 || y == height - 1) {
+                    board.put(x, y, SegmentType.WALL);
+                } else {
+                    board.put(x, y, SegmentType.EMPTY);
+                }
+            }
+        }
+
+        if (apple != null) {
+            board.put(apple.x(), apple.y(), SegmentType.APPLE);
+        }
+
+        for (SnakeAgent agent : snakes) {
+            if (!agent.isAlive()) {
+                continue;
+            }
+
+            java.util.List<Coord> segments = agent.getSnake().segments();
+            for (int i = 0; i < segments.size(); i++) {
+                Coord c = segments.get(i);
+                board.put(c.x(), c.y(), i == 0 ? SegmentType.SNAKE_HEAD : SegmentType.SNAKE_BODY);
+            }
+        }
+    }
+
+    private GameSnapshot buildSnapshot() {
+        return new GameSnapshot(width, height, apple, blackHole, buildBlockedSet());
+    }
+
+    private java.util.Set<Long> buildBlockedSet() {
+        java.util.Set<Long> blocked = new java.util.HashSet<>();
+
+        for (int x = 0; x < width; x++) {
+            blocked.add(SegmentStorage.pack(x, 0));
+            blocked.add(SegmentStorage.pack(x, height - 1));
+        }
+
+        for (int y = 0; y < height; y++) {
+            blocked.add(SegmentStorage.pack(0, y));
+            blocked.add(SegmentStorage.pack(width - 1, y));
+        }
+
+        blocked.addAll(buildOccupiedSet());
+
+        if (blackHole != null) {
+            blocked.add(SegmentStorage.pack(blackHole.x(), blackHole.y()));
+        }
+
+        return blocked;
+    }
+
+    private java.util.Set<Long> buildOccupiedSet() {
+        java.util.Set<Long> occupied = new java.util.HashSet<>();
+
+        for (SnakeAgent agent : snakes) {
+            if (!agent.isAlive()) {
+                continue;
+            }
+
+            for (Coord c : agent.getSnake().segments()) {
+                occupied.add(SegmentStorage.pack(c.x(), c.y()));
+            }
+        }
+
+        return occupied;
+    }
+
+    private Snake.Direction sanitizeDirection(Snake.Direction current, Snake.Direction requested) {
+        if (requested == null) {
+            return current;
+        }
+
+        boolean opposite =
+                (current == Snake.Direction.UP && requested == Snake.Direction.DOWN)
+                        || (current == Snake.Direction.DOWN && requested == Snake.Direction.UP)
+                        || (current == Snake.Direction.LEFT && requested == Snake.Direction.RIGHT)
+                        || (current == Snake.Direction.RIGHT && requested == Snake.Direction.LEFT);
+
+        return opposite ? current : requested;
     }
 
     private void placeBorderWalls() {
@@ -113,28 +398,103 @@ public final class Game {
         }
     }
 
-    private void placeInitialSnake() {
-        List<Coord> segments = snake.segments();
-
-        for (int i = 0; i < segments.size(); i++) {
-            Coord c = segments.get(i);
-
-            board.put(
-                    c.x(),
-                    c.y(),
-                    i == 0 ? SegmentType.SNAKE_HEAD : SegmentType.SNAKE_BODY
-            );
-        }
-    }
-
     private boolean spawnApple() {
         Coord c = board.getRandomByType(SegmentType.EMPTY);
         if (c == null) {
             return false;
         }
 
+        apple = c;
+        appleType = ThreadLocalRandom.current().nextInt(RAGE_APPLE_CHANCE) == 0
+                ? AppleType.RAGE
+                : AppleType.NORMAL;
+
         board.put(c.x(), c.y(), SegmentType.APPLE);
         return true;
+    }
+
+    private void spawnBlackHole() {
+        final int maxAttempts = 2_000;
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            Coord c = randomEmptyCell();
+            if (c == null) {
+                blackHole = null;
+                return;
+            }
+
+            if (apple != null && c.equals(apple)) {
+                continue;
+            }
+
+            blackHole = c;
+            blackHoleTicksLeft = BLACK_HOLE_RELOCATE_EVERY;
+            return;
+        }
+
+        blackHole = null;
+    }
+
+    private void updateBlackHole() {
+        if (blackHole == null) {
+            spawnBlackHole();
+            return;
+        }
+
+        blackHoleTicksLeft--;
+
+        if (blackHoleTicksLeft <= 0) {
+            spawnBlackHole();
+        }
+    }
+
+    private boolean isBlackHole(int x, int y) {
+        return blackHole != null && blackHole.x() == x && blackHole.y() == y;
+    }
+
+    private Snake.Direction applyBlackHolePull(SnakeAgent agent, Snake.Direction dir) {
+        if (blackHole == null || agent.isRaging()) {
+            return dir;
+        }
+
+        Coord head = agent.getSnake().head();
+        int dx = blackHole.x() - head.x();
+        int dy = blackHole.y() - head.y();
+        int distance = Math.abs(dx) + Math.abs(dy);
+
+        if (distance == 0 || distance > BLACK_HOLE_PULL_RADIUS) {
+            return dir;
+        }
+
+        Snake.Direction pullDirection = directionToward(dx, dy);
+        if (pullDirection == null) {
+            return dir;
+        }
+
+        if (isOpposite(dir, pullDirection)) {
+            return dir;
+        }
+
+        return pullDirection;
+    }
+
+    private Snake.Direction directionToward(int dx, int dy) {
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            if (dx > 0) return Snake.Direction.RIGHT;
+            if (dx < 0) return Snake.Direction.LEFT;
+        }
+
+        if (dy > 0) return Snake.Direction.DOWN;
+        if (dy < 0) return Snake.Direction.UP;
+
+        return null;
+    }
+
+    private boolean isOpposite(Snake.Direction a, Snake.Direction b) {
+        return (a == Snake.Direction.UP && b == Snake.Direction.DOWN)
+                || (a == Snake.Direction.DOWN && b == Snake.Direction.UP)
+                || (a == Snake.Direction.LEFT && b == Snake.Direction.RIGHT)
+                || (a == Snake.Direction.RIGHT && b == Snake.Direction.LEFT);
     }
 
     private boolean isInside(int x, int y) {
@@ -145,8 +505,8 @@ public final class Game {
         return board;
     }
 
-    public Snake getSnake() {
-        return snake;
+    public java.util.List<SnakeAgent> getSnakes() {
+        return java.util.Collections.unmodifiableList(snakes);
     }
 
     public int getScore() {

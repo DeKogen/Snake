@@ -1,6 +1,7 @@
 package Delta.Snake;
 
 import Delta.Map.SegmentStorage;
+import Delta.Map.SegmentStorage.Coord;
 import Delta.Map.SegmentStorage.SegmentType;
 
 public final class ConsoleRenderer {
@@ -12,8 +13,13 @@ public final class ConsoleRenderer {
         int width = game.getWidth();
         int height = game.getHeight();
 
+        Coord apple = game.getApple();
+        Coord blackHole = game.getBlackHole();
+
         StringBuilder sb = new StringBuilder();
-        sb.append("Score: ").append(game.getScore()).append('\n');
+        sb.append("Score: ").append(game.getScore())
+                .append("  Rage: ").append(game.getPlayerRageTicks())
+                .append('\n');
 
         sb.append('+');
         for (int x = 0; x < width; x++) {
@@ -25,6 +31,16 @@ public final class ConsoleRenderer {
             sb.append('|');
 
             for (int x = 0; x < width; x++) {
+                if (blackHole != null && blackHole.x() == x && blackHole.y() == y) {
+                    sb.append('O');
+                    continue;
+                }
+
+                if (apple != null && apple.x() == x && apple.y() == y && game.getAppleType() == Game.AppleType.RAGE) {
+                    sb.append('!');
+                    continue;
+                }
+
                 SegmentType type = board.get(x, y);
                 sb.append(symbolFor(type, x, y));
             }
@@ -40,23 +56,26 @@ public final class ConsoleRenderer {
 
         if (game.isGameOver()) {
             sb.append("GAME OVER\n");
+        } else if (game.isWon()) {
+            sb.append("YOU WIN\n");
         }
 
         System.out.print(sb);
 
         if (game.isGameOver()) {
             printGameOver(game.getScore());
+        } else if (game.isWon()) {
+            printWin(game.getScore());
         }
-
     }
 
     private void printGameOver(int score) {
         System.out.println();
-        System.out.println("  ██████   █████  ███    ███ ███████     ██████  ██    ██ ███████ ██████  ");
+        System.out.println("  ██████   █████  ███    ███ ███████      █████  ██    ██ ███████ ██████  ");
         System.out.println(" ██       ██   ██ ████  ████ ██          ██   ██ ██    ██ ██      ██   ██ ");
         System.out.println(" ██   ███ ███████ ██ ████ ██ █████       ██   ██ ██    ██ █████   ██████  ");
         System.out.println(" ██    ██ ██   ██ ██  ██  ██ ██          ██   ██  ██  ██  ██      ██   ██ ");
-        System.out.println("  ██████  ██   ██ ██      ██ ███████     ██████    ████   ███████ ██   ██ ");
+        System.out.println("  ██████  ██   ██ ██      ██ ███████      █████    ████   ███████ ██   ██ ");
         System.out.println();
         System.out.println("Score: " + score);
     }
@@ -86,6 +105,5 @@ public final class ConsoleRenderer {
     private void clearScreen() {
         System.out.print("\033[H\033[2J");
         System.out.flush();
-//        for (int i = 0; i < 20; i++) System.out.println();
     }
 }
