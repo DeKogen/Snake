@@ -13,8 +13,15 @@ public final class InputReader implements Runnable, AutoCloseable {
 
     @Override
     public void run() {
+        boolean rawModeEnabled = false;
+
         try {
-            enableRawMode();
+            try {
+                enableRawMode();
+                rawModeEnabled = true;
+            } catch (IOException e) {
+                System.err.println("Raw mode could not be enabled. Input may require Enter.");
+            }
 
             InputStream in = System.in;
 
@@ -35,11 +42,15 @@ public final class InputReader implements Runnable, AutoCloseable {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException("Input reader failed", e);
+            if (running) {
+                throw new RuntimeException("Input reader failed", e);
+            }
         } finally {
-            try {
-                disableRawMode();
-            } catch (Exception ignored) {
+            if (rawModeEnabled) {
+                try {
+                    disableRawMode();
+                } catch (IOException ignored) {
+                }
             }
         }
     }
@@ -49,16 +60,16 @@ public final class InputReader implements Runnable, AutoCloseable {
         running = false;
         try {
             disableRawMode();
-        } catch (Exception ignored) {
+        } catch (IOException ignored) {
         }
     }
 
     private static void enableRawMode() throws IOException {
-        runCommand("sh", "-c", "stty -icanon -echo min 1 time 0 < /dev/tty");
+        runCommand("stty", "-icanon", "-echo", "min", "1", "time", "0");
     }
 
     private static void disableRawMode() throws IOException {
-        runCommand("sh", "-c", "stty sane < /dev/tty");
+        runCommand("stty", "sane");
     }
 
     private static void runCommand(String... command) throws IOException {
