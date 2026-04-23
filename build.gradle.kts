@@ -29,7 +29,3 @@ tasks.named<JavaExec>("run") {
 tasks.test {
     useJUnitPlatform()
 }
-
-tasks.named<JavaExec>("run") {
-    standardInput = System.`in`
-}

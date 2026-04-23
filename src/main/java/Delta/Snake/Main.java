@@ -10,25 +10,19 @@ public class Main {
         inputThread.setDaemon(true);
         inputThread.start();
 
-        int tickMs = 250;
-
         renderer.render(game);
-
-        boolean extraBotAdded = false;
 
         while (game.isRunning()) {
             game.tick();
+            renderer.render(game);
 
-            if (!extraBotAdded && game.getScore() >= 5) {
-                game.addRandomBot(4);
-                extraBotAdded = true;
+            if (!game.isRunning()) {
+                break;
             }
 
-            renderer.render(game);
-            Thread.sleep(tickMs);
+            Thread.sleep(game.getCurrentTickDelayMs());
         }
 
-        renderer.render(game);
         System.out.println("bye");
     }
 }

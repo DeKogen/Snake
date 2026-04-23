@@ -9,6 +9,7 @@ public final class SnakeAgent {
     private boolean alive = true;
 
     private int rageTicks = 0;
+    private int queuedGrowth = 0;
 
     public SnakeAgent(
             int id,
@@ -64,13 +65,39 @@ public final class SnakeAgent {
         return rageTicks > 0;
     }
 
-    public void activateRage(int ticks) {
-        rageTicks += ticks;
+    public void startOrExtendRage(int baseTicks, int extraTicksIfAlreadyRaging) {
+        if (rageTicks > 0) {
+            rageTicks += extraTicksIfAlreadyRaging;
+        } else {
+            rageTicks = baseTicks;
+        }
     }
 
     public void tickStatuses() {
         if (rageTicks > 0) {
             rageTicks--;
         }
+    }
+
+    public void addQueuedGrowth(int amount) {
+        if (amount > 0) {
+            queuedGrowth += amount;
+        }
+    }
+
+    public boolean hasQueuedGrowth() {
+        return queuedGrowth > 0;
+    }
+
+    public boolean consumeQueuedGrowth() {
+        if (queuedGrowth > 0) {
+            queuedGrowth--;
+            return true;
+        }
+        return false;
+    }
+
+    public int getQueuedGrowth() {
+        return queuedGrowth;
     }
 }

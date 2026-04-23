@@ -65,16 +65,16 @@ public final class InputReader implements Runnable, AutoCloseable {
     }
 
     private static void enableRawMode() throws IOException {
-        runCommand("stty", "-icanon", "-echo", "min", "1", "time", "0");
+        runShellCommand("stty -icanon -echo min 1 time 0 < /dev/tty");
     }
 
     private static void disableRawMode() throws IOException {
-        runCommand("stty", "sane");
+        runShellCommand("stty sane < /dev/tty");
     }
 
-    private static void runCommand(String... command) throws IOException {
+    private static void runShellCommand(String command) throws IOException {
         try {
-            Process process = new ProcessBuilder(command)
+            Process process = new ProcessBuilder("sh", "-c", command)
                     .inheritIO()
                     .start();
 

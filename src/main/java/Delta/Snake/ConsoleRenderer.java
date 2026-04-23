@@ -18,7 +18,9 @@ public final class ConsoleRenderer {
 
         StringBuilder sb = new StringBuilder();
         sb.append("Score: ").append(game.getScore())
-                .append("  Rage: ").append(game.getPlayerRageTicks())
+                .append("  RageTicks: ").append(game.getPlayerRageTicks())
+                .append("  QueuedGrowth: ").append(game.getPlayerQueuedGrowth())
+                .append("  Delay: ").append(game.getCurrentTickDelayMs()).append("ms")
                 .append('\n');
 
         sb.append('+');

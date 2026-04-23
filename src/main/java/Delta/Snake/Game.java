@@ -24,8 +24,14 @@ public final class Game {
     private final int height;
     private final SegmentStorage board;
 
-    private static final int RAGE_DURATION_TICKS = 8;
     private static final int RAGE_APPLE_CHANCE = 5;
+    private static final int RAGE_BASE_TICKS = 5;
+    private static final int RAGE_EXTRA_TICKS_PER_APPLE = 1;
+    private static final int RAGE_BUFFERED_GROWTH = 3;
+
+    private static final int NORMAL_TICK_MS = 250;
+    private static final int RAGE_TICK_MS = 90;
+
     private static final int BLACK_HOLE_PULL_RADIUS = 4;
     private static final int BLACK_HOLE_RELOCATE_EVERY = 18;
 
@@ -39,6 +45,11 @@ public final class Game {
     private int score = 0;
     private int blackHoleTicksLeft = BLACK_HOLE_RELOCATE_EVERY;
     private int nextSnakeId = 1;
+
+    private static final int BOT_SPAWN_EVERY_SCORE = 5;
+    private static final int BASE_BOT_LENGTH = 3;
+
+    private int nextBotSpawnScore = BOT_SPAWN_EVERY_SCORE;
 
     public Game(int width, int height, DirectionController playerInput) {
         if (width < 7 || height < 7) {
@@ -73,6 +84,12 @@ public final class Game {
     public boolean tick() {
         if (state != State.RUNNING) {
             return false;
+        }
+
+        if (score >= nextBotSpawnScore) {
+            int botLength = BASE_BOT_LENGTH + (score / 10);
+            addRandomBot(botLength, new RewardBotController());
+            nextBotSpawnScore += BOT_SPAWN_EVERY_SCORE;
         }
 
         for (SnakeAgent agent : snakes) {
@@ -141,9 +158,10 @@ public final class Game {
             }
 
             long ownTail = SegmentStorage.pack(agent.getSnake().tail().x(), agent.getSnake().tail().y());
-            boolean grows = apple != null && next.equals(apple);
+            boolean ateApple = apple != null && next.equals(apple);
+            boolean growsThisTurn = ateApple || agent.hasQueuedGrowth();
 
-            boolean hitsBody = occupiedNow.contains(nextKey) && !(nextKey == ownTail && !grows);
+            boolean hitsBody = occupiedNow.contains(nextKey) && !(nextKey == ownTail && !growsThisTurn);
             if (hitsBody) {
                 agent.kill();
             }
@@ -157,7 +175,8 @@ public final class Game {
             Coord next = nextHeads.get(agent);
 
             boolean ateApple = apple != null && next.equals(apple);
-            boolean grows = ateApple || agent.isRaging();
+            boolean bufferedGrowth = agent.consumeQueuedGrowth();
+            boolean grows = ateApple || bufferedGrowth;
 
             agent.getSnake().move(chosenDirections.get(agent), grows);
 
@@ -165,7 +184,8 @@ public final class Game {
                 appleEaten = true;
 
                 if (appleType == AppleType.RAGE) {
-                    agent.activateRage(RAGE_DURATION_TICKS);
+                    agent.startOrExtendRage(RAGE_BASE_TICKS, RAGE_EXTRA_TICKS_PER_APPLE);
+                    agent.addQueuedGrowth(RAGE_BUFFERED_GROWTH);
                 }
 
                 if (agent.isPlayer()) {
@@ -254,6 +274,19 @@ public final class Game {
         return 0;
     }
 
+    public int getCurrentTickDelayMs() {
+        return getPlayerRageTicks() > 0 ? RAGE_TICK_MS : NORMAL_TICK_MS;
+    }
+
+    public int getPlayerQueuedGrowth() {
+        for (SnakeAgent agent : snakes) {
+            if (agent.isPlayer()) {
+                return agent.getQueuedGrowth();
+            }
+        }
+        return 0;
+    }
+
     public boolean addRandomBot(int length) {
         return addRandomBot(length, new RewardBotController());
     }
@@ -299,7 +332,6 @@ public final class Game {
             board.put(c.x(), c.y(), i == 0 ? SegmentType.SNAKE_HEAD : SegmentType.SNAKE_BODY);
         }
     }
-
 
 
     private void rebuildBoard() {
@@ -453,6 +485,10 @@ public final class Game {
     }
 
     private Snake.Direction applyBlackHolePull(SnakeAgent agent, Snake.Direction dir) {
+//        if (agent.isPlayer()) {
+//            return dir;
+//        }
+
         if (blackHole == null || agent.isRaging()) {
             return dir;
         }
@@ -537,3 +573,5 @@ public final class Game {
         return height;
     }
 }
+//blackhole should not spawn all the time (be a bit random), dont spawn to close to player, pull not each tick but once every 2 ticks
+//blackhole breaks self direction, should not kill but decrease size by 1
