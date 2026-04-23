@@ -34,11 +34,11 @@ public final class InputReader implements Runnable, AutoCloseable {
                 char c = Character.toLowerCase((char) ch);
 
                 switch (c) {
-                    case 'w' -> controller.offerDirection(Snake.Direction.UP);
-                    case 's' -> controller.offerDirection(Snake.Direction.DOWN);
-                    case 'a' -> controller.offerDirection(Snake.Direction.LEFT);
-                    case 'd' -> controller.offerDirection(Snake.Direction.RIGHT);
-                    case 'q' -> running = false;
+                    case 'w', 'ц' -> controller.offerDirection(Snake.Direction.UP);
+                    case 's', 'ы' -> controller.offerDirection(Snake.Direction.DOWN);
+                    case 'a', 'ф' -> controller.offerDirection(Snake.Direction.LEFT);
+                    case 'd', 'в' -> controller.offerDirection(Snake.Direction.RIGHT);
+                    case 'q', 'й' -> running = false;
                 }
             }
         } catch (IOException e) {
