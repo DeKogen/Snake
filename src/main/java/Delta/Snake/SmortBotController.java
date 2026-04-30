@@ -15,7 +15,7 @@ public final class SmortBotController implements SnakeController {
     private static final int WALL_NEAR_PENALTY = 12;
 
     private final Pathfinder pathfinder = new Pathfinder();
-    private final SmortBotController fallback = new SmortBotController();
+    private final RewardBotController fallback = new RewardBotController();
 
     @Override
     public Snake.Direction chooseDirection(GameSnapshot snapshot, SnakeAgent self) {
