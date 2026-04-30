@@ -33,7 +33,7 @@ public final class Game {
 
     private static final int BLACK_HOLE_PULL_RADIUS = 4;
     private static final int BLACK_HOLE_LIFETIME_TICKS = 18;
-    private static final int BLACK_HOLE_SPAWN_CHANCE = 12;
+    private static final int BLACK_HOLE_SPAWN_CHANCE = 5;
     private static final int BLACK_HOLE_MIN_HEAD_DISTANCE = 5;
 
     private final java.util.List<SnakeAgent> snakes = new java.util.ArrayList<>();
