@@ -19,6 +19,8 @@ public final class Game {
         RAGE
     }
 
+    private final boolean botOnly;
+
     private final int width;
     private final int height;
     private final SegmentStorage board;
@@ -32,9 +34,10 @@ public final class Game {
     private static final int RAGE_TICK_MS = 90;
 
     private static final int BLACK_HOLE_PULL_RADIUS = 4;
-    private static final int BLACK_HOLE_LIFETIME_TICKS = 18;
-    private static final int BLACK_HOLE_SPAWN_CHANCE = 5;
+    private static final int BLACK_HOLE_LIFETIME_TICKS = 14;
+    private static final int BLACK_HOLE_SPAWN_CHANCE = 80;
     private static final int BLACK_HOLE_MIN_HEAD_DISTANCE = 5;
+    private static final int BLACK_HOLE_RESPAWN_COOLDOWN_TICKS = 20;
 
     private final java.util.List<SnakeAgent> snakes = new java.util.ArrayList<>();
 
@@ -45,6 +48,7 @@ public final class Game {
     private State state = State.RUNNING;
     private int score = 0;
     private int blackHoleTicksLeft = 0;
+    private int blackHoleRespawnCooldown = BLACK_HOLE_RESPAWN_COOLDOWN_TICKS;
     private int nextSnakeId = 1;
 
     private static final int BOT_SPAWN_EVERY_SCORE = 5;
@@ -60,10 +64,12 @@ public final class Game {
         this.width = width;
         this.height = height;
         this.board = new SegmentStorage(width, height);
+        this.botOnly = false;
 
         placeBorderWalls();
 
         Snake playerSnake = new Snake(width / 2, height / 2, 3, Snake.Direction.RIGHT);
+
         SnakeAgent playerAgent = new SnakeAgent(
                 nextSnakeId++,
                 playerSnake,
@@ -71,6 +77,7 @@ public final class Game {
                 Snake.Direction.RIGHT,
                 true
         );
+
         snakes.add(playerAgent);
         placeAgentOnBoard(playerAgent);
 
@@ -80,6 +87,39 @@ public final class Game {
 
         blackHole = null;
         blackHoleTicksLeft = 0;
+        blackHoleRespawnCooldown = BLACK_HOLE_RESPAWN_COOLDOWN_TICKS;
+
+        rebuildBoard();
+    }
+
+    public Game(int width, int height, int botCount) {
+        if (width < 7 || height < 7) {
+            throw new IllegalArgumentException("Board is too small");
+        }
+
+        if (botCount < 1) {
+            throw new IllegalArgumentException("botCount must be at least 1");
+        }
+
+        this.width = width;
+        this.height = height;
+        this.board = new SegmentStorage(width, height);
+        this.botOnly = true;
+
+        placeBorderWalls();
+
+        for (int i = 0; i < botCount; i++) {
+            addRandomBot(BASE_BOT_LENGTH, new SmortBotController());
+        }
+
+        if (!spawnApple()) {
+            state = State.WIN;
+        }
+
+        blackHole = null;
+        blackHoleTicksLeft = 0;
+        blackHoleRespawnCooldown = BLACK_HOLE_RESPAWN_COOLDOWN_TICKS;
+
         rebuildBoard();
     }
 
@@ -88,7 +128,7 @@ public final class Game {
             return false;
         }
 
-        if (score >= nextBotSpawnScore) {
+        if (!botOnly && score >= nextBotSpawnScore) {
             int botLength = BASE_BOT_LENGTH + (score / 10);
             addRandomBot(botLength, new SmortBotController());
             nextBotSpawnScore += BOT_SPAWN_EVERY_SCORE;
@@ -196,11 +236,22 @@ public final class Game {
             }
         }
 
-        boolean playerAlive = snakes.stream().anyMatch(a -> a.isPlayer() && a.isAlive());
-        if (!playerAlive) {
+        boolean anySnakeAlive = snakes.stream().anyMatch(SnakeAgent::isAlive);
+
+        if (!anySnakeAlive) {
             state = State.GAME_OVER;
             rebuildBoard();
             return false;
+        }
+
+        if (!botOnly) {
+            boolean playerAlive = snakes.stream().anyMatch(a -> a.isPlayer() && a.isAlive());
+
+            if (!playerAlive) {
+                state = State.GAME_OVER;
+                rebuildBoard();
+                return false;
+            }
         }
 
         rebuildBoard();
@@ -269,8 +320,8 @@ public final class Game {
 
     public int getPlayerRageTicks() {
         for (SnakeAgent agent : snakes) {
-            if (agent.isPlayer()) {
-                return agent.getRageTicks();
+            if (agent.isPlayer() || botOnly) {
+                score += (appleType == AppleType.RAGE) ? 3 : 1;
             }
         }
         return 0;

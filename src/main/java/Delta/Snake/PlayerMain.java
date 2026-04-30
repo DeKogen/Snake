@@ -1,6 +1,6 @@
 package Delta.Snake;
 
-public class Main {
+public class PlayerMain {
     public static void main(String[] args) throws InterruptedException {
         DirectionController controller = new DirectionController();
         Game game = new Game(30, 15, controller);
