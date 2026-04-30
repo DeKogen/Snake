@@ -1,11 +1,8 @@
 package Delta.Snake;
 
-import Delta.Map.SegmentStorage;
 import Delta.Map.SegmentStorage.Coord;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public final class SmortBotController implements SnakeController {
     private static final int APPLE_BASE_SCORE = 1_000;
@@ -18,7 +15,7 @@ public final class SmortBotController implements SnakeController {
     private static final int WALL_NEAR_PENALTY = 12;
 
     private final Pathfinder pathfinder = new Pathfinder();
-    private final RewardBotController fallback = new RewardBotController();
+    private final SmortBotController fallback = new SmortBotController();
 
     @Override
     public Snake.Direction chooseDirection(GameSnapshot snapshot, SnakeAgent self) {
@@ -156,6 +153,8 @@ public final class SmortBotController implements SnakeController {
                 penalty += BLACK_HOLE_NEAR_PENALTY;
             } else if (d == 2) {
                 penalty += BLACK_HOLE_NEAR_PENALTY / 2;
+            } else if (d == 3) {
+                penalty += BLACK_HOLE_NEAR_PENALTY / 3;
             }
         }
 
@@ -242,11 +241,7 @@ public final class SmortBotController implements SnakeController {
             }
 
             Coord blackHole = snapshot.blackHole();
-            if (blackHole != null && sameCoord(coord, blackHole)) {
-                return true;
-            }
-
-            return false;
+            return blackHole != null && sameCoord(coord, blackHole);
         }
 
         @Override

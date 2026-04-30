@@ -32,7 +32,9 @@ public final class Game {
     private static final int RAGE_TICK_MS = 90;
 
     private static final int BLACK_HOLE_PULL_RADIUS = 4;
-    private static final int BLACK_HOLE_RELOCATE_EVERY = 18;
+    private static final int BLACK_HOLE_LIFETIME_TICKS = 18;
+    private static final int BLACK_HOLE_SPAWN_CHANCE = 12;
+    private static final int BLACK_HOLE_MIN_HEAD_DISTANCE = 5;
 
     private final java.util.List<SnakeAgent> snakes = new java.util.ArrayList<>();
 
@@ -42,7 +44,7 @@ public final class Game {
 
     private State state = State.RUNNING;
     private int score = 0;
-    private int blackHoleTicksLeft = BLACK_HOLE_RELOCATE_EVERY;
+    private int blackHoleTicksLeft = 0;
     private int nextSnakeId = 1;
 
     private static final int BOT_SPAWN_EVERY_SCORE = 5;
@@ -76,7 +78,8 @@ public final class Game {
             state = State.WIN;
         }
 
-        spawnBlackHole();
+        blackHole = null;
+        blackHoleTicksLeft = 0;
         rebuildBoard();
     }
 
@@ -476,34 +479,72 @@ public final class Game {
 
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             Coord c = randomEmptyCell();
+
             if (c == null) {
                 blackHole = null;
+                blackHoleTicksLeft = 0;
                 return;
             }
 
-            if (c.equals(apple)) {
+            if (apple != null && c.equals(apple)) {
+                continue;
+            }
+
+            if (isTooCloseToAnySnakeHead(c)) {
                 continue;
             }
 
             blackHole = c;
-            blackHoleTicksLeft = BLACK_HOLE_RELOCATE_EVERY;
+            blackHoleTicksLeft = BLACK_HOLE_LIFETIME_TICKS;
             return;
         }
 
         blackHole = null;
+        blackHoleTicksLeft = 0;
+    }
+
+    private boolean isTooCloseToAnySnakeHead(Coord coord) {
+        for (SnakeAgent agent : snakes) {
+            if (!agent.isAlive()) {
+                continue;
+            }
+
+            Coord head = agent.getSnake().head();
+
+            if (manhattan(coord, head) < BLACK_HOLE_MIN_HEAD_DISTANCE) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int manhattan(Coord a, Coord b) {
+        return Math.abs(a.x() - b.x()) + Math.abs(a.y() - b.y());
     }
 
     private void updateBlackHole() {
         if (blackHole == null) {
-            spawnBlackHole();
+            trySpawnBlackHoleRandomly();
             return;
         }
 
         blackHoleTicksLeft--;
 
         if (blackHoleTicksLeft <= 0) {
-            spawnBlackHole();
+            blackHole = null;
+            blackHoleTicksLeft = 0;
         }
+    }
+
+    private void trySpawnBlackHoleRandomly() {
+        int roll = ThreadLocalRandom.current().nextInt(BLACK_HOLE_SPAWN_CHANCE);
+
+        if (roll != 0) {
+            return;
+        }
+
+        spawnBlackHole();
     }
 
     private boolean isBlackHole(int x, int y) {
@@ -599,5 +640,3 @@ public final class Game {
         return height;
     }
 }
-//blackhole should not spawn all the time (be a bit random), dont spawn to close to player, pull not each tick but once every 2 ticks
-//blackhole breaks self direction, should not kill but decrease size by 1
