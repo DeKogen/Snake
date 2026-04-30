@@ -32,9 +32,10 @@ public final class Game {
     private static final int RAGE_TICK_MS = 90;
 
     private static final int BLACK_HOLE_PULL_RADIUS = 4;
-    private static final int BLACK_HOLE_LIFETIME_TICKS = 18;
-    private static final int BLACK_HOLE_SPAWN_CHANCE = 12;
+    private static final int BLACK_HOLE_LIFETIME_TICKS = 14;
+    private static final int BLACK_HOLE_SPAWN_CHANCE = 80;
     private static final int BLACK_HOLE_MIN_HEAD_DISTANCE = 5;
+    private static final int BLACK_HOLE_RESPAWN_COOLDOWN_TICKS = 20;
 
     private final java.util.List<SnakeAgent> snakes = new java.util.ArrayList<>();
 
@@ -45,6 +46,7 @@ public final class Game {
     private State state = State.RUNNING;
     private int score = 0;
     private int blackHoleTicksLeft = 0;
+    private int blackHoleRespawnCooldown = BLACK_HOLE_RESPAWN_COOLDOWN_TICKS;
     private int nextSnakeId = 1;
 
     private static final int BOT_SPAWN_EVERY_SCORE = 5;
@@ -524,17 +526,24 @@ public final class Game {
     }
 
     private void updateBlackHole() {
-        if (blackHole == null) {
-            trySpawnBlackHoleRandomly();
+        if (blackHole != null) {
+            blackHoleTicksLeft--;
+
+            if (blackHoleTicksLeft <= 0) {
+                blackHole = null;
+                blackHoleTicksLeft = 0;
+                blackHoleRespawnCooldown = BLACK_HOLE_RESPAWN_COOLDOWN_TICKS;
+            }
+
             return;
         }
 
-        blackHoleTicksLeft--;
-
-        if (blackHoleTicksLeft <= 0) {
-            blackHole = null;
-            blackHoleTicksLeft = 0;
+        if (blackHoleRespawnCooldown > 0) {
+            blackHoleRespawnCooldown--;
+            return;
         }
+
+        trySpawnBlackHoleRandomly();
     }
 
     private void trySpawnBlackHoleRandomly() {
