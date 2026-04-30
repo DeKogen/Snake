@@ -15,8 +15,7 @@ public final class SegmentStorage {
     private final int height;
 
     private final Map<Long, SegmentType> typeByCoord = new HashMap<>();
-    private final EnumMap<SegmentType, ArrayList<Long>> coordsByType =
-            new EnumMap<>(SegmentType.class);
+    private final EnumMap<SegmentType, ArrayList<Long>> coordsByType = new EnumMap<>(SegmentType.class);
     private final Map<Long, Integer> indexInBucket = new HashMap<>();
 
     public SegmentStorage(int width, int height) {
@@ -110,5 +109,6 @@ public final class SegmentStorage {
         return new Coord(x, y);
     }
 
-    public record Coord(int x, int y) {}
+    public record Coord(int x, int y) {
+    }
 }

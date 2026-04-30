@@ -23,9 +23,8 @@ public final class DirectionController {
     }
 
     public synchronized Snake.Direction consumeDirection() {
-        Snake.Direction dirToUse = (nextDirection != null) ? nextDirection : currentDirection;
 
-        currentDirection = dirToUse;
+        currentDirection = (nextDirection != null) ? nextDirection : currentDirection;
         nextDirection = bufferedDirection;
         bufferedDirection = null;
 

@@ -24,9 +24,7 @@ public final class ConsoleRenderer {
                 .append('\n');
 
         sb.append('+');
-        for (int x = 0; x < width; x++) {
-            sb.append('-');
-        }
+        sb.append("-".repeat(Math.max(0, width)));
         sb.append("+\n");
 
         for (int y = 0; y < height; y++) {
@@ -51,9 +49,7 @@ public final class ConsoleRenderer {
         }
 
         sb.append('+');
-        for (int x = 0; x < width; x++) {
-            sb.append('-');
-        }
+        sb.append("-".repeat(Math.max(0, width)));
         sb.append("+\n");
 
         if (game.isGameOver()) {

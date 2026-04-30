@@ -5,7 +5,6 @@ import Delta.Map.SegmentStorage.Coord;
 import Delta.Map.SegmentStorage.SegmentType;
 
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.List;
 
 public final class Game {
 
@@ -88,7 +87,7 @@ public final class Game {
 
         if (score >= nextBotSpawnScore) {
             int botLength = BASE_BOT_LENGTH + (score / 10);
-            addRandomBot(botLength, new RewardBotController());
+            addRandomBot(botLength, new SmortBotController());
             nextBotSpawnScore += BOT_SPAWN_EVERY_SCORE;
         }
 
@@ -158,7 +157,7 @@ public final class Game {
             }
 
             long ownTail = SegmentStorage.pack(agent.getSnake().tail().x(), agent.getSnake().tail().y());
-            boolean ateApple = apple != null && next.equals(apple);
+            boolean ateApple = next.equals(apple);
             boolean growsThisTurn = ateApple || agent.hasQueuedGrowth();
 
             boolean hitsBody = occupiedNow.contains(nextKey) && !(nextKey == ownTail && !growsThisTurn);
@@ -174,7 +173,7 @@ public final class Game {
 
             Coord next = nextHeads.get(agent);
 
-            boolean ateApple = apple != null && next.equals(apple);
+            boolean ateApple = next.equals(apple);
             boolean bufferedGrowth = agent.consumeQueuedGrowth();
             boolean grows = ateApple || bufferedGrowth;
 
@@ -363,7 +362,34 @@ public final class Game {
     }
 
     private GameSnapshot buildSnapshot() {
-        return new GameSnapshot(width, height, apple, blackHole, buildBlockedSet());
+        return new GameSnapshot(
+                width,
+                height,
+                apple,
+                blackHole,
+                buildBlockedSet(),
+                buildSnakeInfos()
+        );
+    }
+
+    private java.util.List<GameSnapshot.SnakeInfo> buildSnakeInfos() {
+        java.util.List<GameSnapshot.SnakeInfo> result = new java.util.ArrayList<>();
+
+        for (SnakeAgent agent : snakes) {
+            Snake snake = agent.getSnake();
+
+            result.add(new GameSnapshot.SnakeInfo(
+                    agent.getId(),
+                    snake.head(),
+                    snake.tail(),
+                    snake.segments(),
+                    agent.getCurrentDirection(),
+                    agent.isPlayer(),
+                    agent.isAlive()
+            ));
+        }
+
+        return result;
     }
 
     private java.util.Set<Long> buildBlockedSet() {
@@ -455,7 +481,7 @@ public final class Game {
                 return;
             }
 
-            if (apple != null && c.equals(apple)) {
+            if (c.equals(apple)) {
                 continue;
             }
 
