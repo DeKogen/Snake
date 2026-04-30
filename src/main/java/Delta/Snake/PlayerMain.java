@@ -20,6 +20,10 @@ public class PlayerMain {
                 break;
             }
 
+            if (game.getScore() >= 5) {
+                game.addRandomBot(4);
+            }
+
             Thread.sleep(game.getCurrentTickDelayMs());
         }
 
