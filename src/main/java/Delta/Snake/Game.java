@@ -81,7 +81,7 @@ public final class Game {
         snakes.add(playerAgent);
         placeAgentOnBoard(playerAgent);
 
-        if (!spawnApple()) {
+        if (spawnApple()) {
             state = State.WIN;
         }
 
@@ -112,7 +112,7 @@ public final class Game {
             addRandomBot(BASE_BOT_LENGTH, new SmortBotController());
         }
 
-        if (!spawnApple()) {
+        if (spawnApple()) {
             state = State.WIN;
         }
 
@@ -123,9 +123,9 @@ public final class Game {
         rebuildBoard();
     }
 
-    public boolean tick() {
+    public void tick() {
         if (state != State.RUNNING) {
-            return false;
+            return;
         }
 
         if (!botOnly && score >= nextBotSpawnScore) {
@@ -178,7 +178,7 @@ public final class Game {
             Coord next = nextHeads.get(agent);
             long nextKey = SegmentStorage.pack(next.x(), next.y());
 
-            if (!isInside(next.x(), next.y())) {
+            if (isInside(next.x(), next.y())) {
                 agent.kill();
                 continue;
             }
@@ -241,7 +241,7 @@ public final class Game {
         if (!anySnakeAlive) {
             state = State.GAME_OVER;
             rebuildBoard();
-            return false;
+            return;
         }
 
         if (!botOnly) {
@@ -250,7 +250,7 @@ public final class Game {
             if (!playerAlive) {
                 state = State.GAME_OVER;
                 rebuildBoard();
-                return false;
+                return;
             }
         }
 
@@ -258,15 +258,14 @@ public final class Game {
 
         if (appleEaten) {
             apple = null;
-            if (!spawnApple()) {
+            if (spawnApple()) {
                 state = State.WIN;
                 rebuildBoard();
-                return false;
+                return;
             }
             rebuildBoard();
         }
 
-        return true;
     }
 
     public boolean addRandomBot(int length, SnakeController controller) {
@@ -365,7 +364,7 @@ public final class Game {
                 case DOWN -> y = headY - i;
             }
 
-            if (!isInside(x, y)) {
+            if (isInside(x, y)) {
                 return false;
             }
 
@@ -513,7 +512,7 @@ public final class Game {
     private boolean spawnApple() {
         Coord c = board.getRandomByType(SegmentType.EMPTY);
         if (c == null) {
-            return false;
+            return true;
         }
 
         apple = c;
@@ -522,7 +521,7 @@ public final class Game {
                 : AppleType.NORMAL;
 
         board.put(c.x(), c.y(), SegmentType.APPLE);
-        return true;
+        return false;
     }
 
     private void spawnBlackHole() {
@@ -537,7 +536,7 @@ public final class Game {
                 return;
             }
 
-            if (apple != null && c.equals(apple)) {
+            if (c.equals(apple)) {
                 continue;
             }
 
@@ -652,7 +651,7 @@ public final class Game {
     }
 
     private boolean isInside(int x, int y) {
-        return x >= 0 && x < width && y >= 0 && y < height;
+        return x < 0 || x >= width || y < 0 || y >= height;
     }
 
     public SegmentStorage getBoard() {

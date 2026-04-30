@@ -2,6 +2,8 @@ package Delta.Snake;
 
 public class PlayerMain {
     public static void main(String[] args) throws InterruptedException {
+        int nextbot = 0;
+
         DirectionController controller = new DirectionController();
         Game game = new Game(30, 15, controller);
         ConsoleRenderer renderer = new ConsoleRenderer();
@@ -20,8 +22,9 @@ public class PlayerMain {
                 break;
             }
 
-            if (game.getScore() >= 5) {
-                game.addRandomBot(4);
+            if (game.getScore() >= nextbot) {
+                game.addRandomBot((game.getScore() /2), new SmortBotController());
+                nextbot += 100;
             }
 
             Thread.sleep(game.getCurrentTickDelayMs());
